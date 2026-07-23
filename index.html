@@ -9,6 +9,8 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <style>
   :root{
     --bg:#0a0e16;
@@ -261,7 +263,7 @@
 </section>
 
 <footer class="hint">
-  Los datos se guardan de forma privada en este dispositivo/cuenta. En iPhone, usa "Compartir → Añadir a pantalla de inicio" en Safari para abrir esta página como una app.
+  Los datos se guardan en la nube (Firebase) y se sincronizan en tiempo real entre todos los que abran esta página. En iPhone, usa "Compartir → Añadir a pantalla de inicio" en Safari para abrir esta página como una app.
 </footer>
 
 <script>
@@ -271,15 +273,45 @@ const $$=s=>document.querySelectorAll(s);
 const DEFAULTS = { matricula:'HJ-521', origen:'SKMD', offset:-5, piloto:'Santiago Rendón', copiloto:'Juan Esteban Saldarriaga' };
 let state = { flights:[], maintenance:[], settings:{ matricula:'', origen:'', offset:-5, acumulado:0, totalHoras:0 } };
 
-// ---------- storage ----------
+// ---------- Firebase (base de datos compartida en la nube) ----------
+const firebaseConfig = {
+  apiKey: "AIzaSyA28wVpMs7VyA9R6B8gr9tZhC8Y1VcAL2Y",
+  authDomain: "libro-de-vuelo-hj-521.firebaseapp.com",
+  projectId: "libro-de-vuelo-hj-521",
+  storageBucket: "libro-de-vuelo-hj-521.firebasestorage.app",
+  messagingSenderId: "19071938862",
+  appId: "1:19071938862:web:b9b620f7de27c35e350abf"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+try{ db.enablePersistence({synchronizeTabs:true}).catch(()=>{}); }catch(e){}
+const docRef = db.collection('libro').doc('hj521');
+
+// ---------- storage (lee/escribe en Firestore; todos los dispositivos ven los mismos datos) ----------
 async function loadAll(){
-  try{ const v=localStorage.getItem('lv_flights'); state.flights = v? JSON.parse(v):[]; }catch(e){ state.flights=[]; }
-  try{ const v=localStorage.getItem('lv_maintenance'); state.maintenance = v? JSON.parse(v):[]; }catch(e){ state.maintenance=[]; }
-  try{ const v=localStorage.getItem('lv_settings'); state.settings = v? JSON.parse(v):state.settings; }catch(e){}
+  try{
+    const snap = await docRef.get();
+    if(snap.exists){
+      const d = snap.data();
+      state.flights = d.flights || [];
+      state.maintenance = d.maintenance || [];
+      state.settings = Object.assign(state.settings, d.settings||{});
+    }
+  }catch(e){ console.error(e); alert('No se pudo conectar con la base de datos en la nube. Revisa tu conexión a internet.'); }
 }
-async function saveFlights(){ try{ localStorage.setItem('lv_flights', JSON.stringify(state.flights)); }catch(e){ console.error(e); alert('No se pudo guardar en este dispositivo. ¿Estás en modo de navegación privada?'); } }
-async function saveMaint(){ try{ localStorage.setItem('lv_maintenance', JSON.stringify(state.maintenance)); }catch(e){ console.error(e); alert('No se pudo guardar en este dispositivo. ¿Estás en modo de navegación privada?'); } }
-async function saveSettings(){ try{ localStorage.setItem('lv_settings', JSON.stringify(state.settings)); }catch(e){ console.error(e); } }
+function startRealtimeSync(){
+  docRef.onSnapshot(snap=>{
+    if(!snap.exists) return;
+    const d = snap.data();
+    state.flights = d.flights || [];
+    state.maintenance = d.maintenance || [];
+    state.settings = Object.assign({}, state.settings, d.settings||{});
+    renderGauge(); renderHistorial(); renderMant();
+  }, err=>console.error('Sync error:', err));
+}
+async function saveFlights(){ try{ await docRef.set({flights: state.flights}, {merge:true}); }catch(e){ console.error(e); alert('No se pudo guardar en la nube. Revisa tu conexión a internet.'); } }
+async function saveMaint(){ try{ await docRef.set({maintenance: state.maintenance}, {merge:true}); }catch(e){ console.error(e); alert('No se pudo guardar en la nube. Revisa tu conexión a internet.'); } }
+async function saveSettings(){ try{ await docRef.set({settings: state.settings}, {merge:true}); }catch(e){ console.error(e); } }
 
 // ---------- fixed timezone ----------
 const COLOMBIA_OFFSET = -5;
@@ -663,6 +695,7 @@ async function importHistorico(){
   $('#f_fecha').value = today;
   $('#m_fecha').value = today;
   renderGauge(); renderHistorial(); renderMant(); updatePreview();
+  startRealtimeSync();
 })();
 </script>
 </body>
