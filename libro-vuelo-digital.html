@@ -1,0 +1,669 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Libro de Vuelo Digital</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root{
+    --bg:#0a0e16;
+    --panel:#121a29;
+    --panel-2:#0d1420;
+    --border:#22304a;
+    --amber:#e8a33d;
+    --amber-dim:#7a5a24;
+    --cyan:#4fd1c5;
+    --text:#e7ecf3;
+    --muted:#8996ab;
+    --danger:#e2584f;
+    --danger-dim:#3a1f1e;
+    --ok:#5cc98a;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:
+      radial-gradient(1200px 600px at 50% -10%, #142136 0%, var(--bg) 60%);
+    color:var(--text);
+    font-family:'Inter',sans-serif;
+    -webkit-tap-highlight-color:transparent;
+    padding-bottom:40px;
+  }
+  .mono{font-family:'IBM Plex Mono',monospace;}
+  header.top{
+    padding:22px 18px 14px;
+    text-align:center;
+    border-bottom:1px solid var(--border);
+    background:linear-gradient(180deg,#0e1420,transparent);
+  }
+  .tail{
+    display:inline-block;
+    font-family:'Space Grotesk',sans-serif;
+    font-weight:700;
+    font-size:15px;
+    letter-spacing:2px;
+    color:var(--amber);
+    border:1.5px solid var(--amber-dim);
+    padding:5px 14px;
+    border-radius:6px;
+    background:#1a1408;
+  }
+  header.top h1{
+    font-family:'Space Grotesk',sans-serif;
+    font-size:20px;
+    margin:10px 0 2px;
+    font-weight:600;
+    letter-spacing:0.3px;
+  }
+  header.top p{margin:0;color:var(--muted);font-size:12.5px;}
+
+  .gauge-panel{
+    margin:16px 14px 6px;
+    background:var(--panel);
+    border:1px solid var(--border);
+    border-radius:16px;
+    padding:18px 16px;
+    display:flex;
+    align-items:center;
+    gap:16px;
+  }
+  .gauge-panel.alert{
+    border-color:#5a2a26;
+    background:linear-gradient(180deg,#1c1210,var(--panel));
+  }
+  .gauge-wrap{flex:0 0 auto;}
+  .gauge-info{flex:1;min-width:0;}
+  .gauge-info .label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;}
+  .gauge-info .value{font-family:'IBM Plex Mono',monospace;font-size:26px;font-weight:600;color:var(--amber);line-height:1.2;}
+  .gauge-info .sub{font-size:12px;color:var(--muted);margin-top:2px;}
+  .alert-banner{
+    margin-top:10px;font-size:12.5px;color:#ffb4ae;background:var(--danger-dim);
+    border:1px solid #5a2a26;padding:8px 10px;border-radius:8px;
+  }
+  .reset-btn{
+    margin-top:8px;font-size:12px;background:none;border:1px solid var(--amber-dim);color:var(--amber);
+    padding:6px 10px;border-radius:7px;cursor:pointer;
+  }
+  .totalhoras{margin:2px 14px 16px;text-align:center;color:var(--muted);font-size:12px;}
+  .totalhoras b{color:var(--cyan);font-family:'IBM Plex Mono',monospace;}
+
+  nav.tabs{
+    display:flex;gap:6px;margin:0 14px 14px;background:var(--panel-2);
+    border:1px solid var(--border);border-radius:12px;padding:4px;
+  }
+  nav.tabs button{
+    flex:1;background:none;border:none;color:var(--muted);font-family:'Inter';
+    font-size:13px;font-weight:600;padding:10px 4px;border-radius:9px;cursor:pointer;
+  }
+  nav.tabs button.active{background:var(--amber);color:#1a1408;}
+
+  .tab-content{display:none;padding:0 14px;}
+  .tab-content.active{display:block;}
+
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:16px;margin-bottom:14px;}
+  .card h2{font-family:'Space Grotesk';font-size:15px;margin:0 0 12px;color:var(--text);}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+  label{display:block;font-size:11.5px;color:var(--muted);margin-bottom:4px;margin-top:10px;letter-spacing:.3px;}
+  label:first-child{margin-top:0;}
+  input,select,textarea{
+    width:100%;background:#0c1220;border:1px solid var(--border);color:var(--text);
+    padding:10px 10px;border-radius:8px;font-size:14.5px;font-family:'Inter';
+  }
+  input.mono-field{font-family:'IBM Plex Mono';}
+  textarea{resize:vertical;min-height:60px;}
+  input:focus,select:focus,textarea:focus{outline:2px solid var(--amber-dim);border-color:var(--amber);}
+  .row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;}
+  .utc-preview{
+    margin-top:12px;background:#0c1220;border:1px dashed var(--border);border-radius:10px;
+    padding:10px 12px;font-size:12.5px;color:var(--cyan);font-family:'IBM Plex Mono';line-height:1.6;
+  }
+  .utc-preview .lbl{color:var(--muted);font-family:'Inter';}
+  button.primary{
+    width:100%;margin-top:16px;background:var(--amber);color:#1a1408;border:none;
+    padding:13px;border-radius:10px;font-weight:700;font-size:14.5px;cursor:pointer;font-family:'Space Grotesk';
+    letter-spacing:.3px;
+  }
+  button.primary:active{transform:scale(0.99);}
+  .msg{font-size:12.5px;margin-top:8px;padding:8px 10px;border-radius:8px;display:none;}
+  .msg.err{display:block;background:var(--danger-dim);color:#ffb4ae;border:1px solid #5a2a26;}
+  .msg.ok{display:block;background:#12251c;color:#9be3b8;border:1px solid #244a34;}
+
+  .flight-item, .maint-item{
+    background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:12px 14px;margin-bottom:10px;
+  }
+  .flight-item .top-row{display:flex;justify-content:space-between;align-items:baseline;}
+  .flight-item .route{font-family:'Space Grotesk';font-weight:600;font-size:14.5px;}
+  .flight-item .date{font-size:11.5px;color:var(--muted);}
+  .flight-item .meta{font-size:12px;color:var(--muted);margin-top:6px;line-height:1.7;}
+  .flight-item .meta b{color:var(--text);}
+  .flight-item .hobbs{color:var(--amber);font-family:'IBM Plex Mono';}
+  .flight-item .utc{color:var(--cyan);font-family:'IBM Plex Mono';}
+  .del{float:right;background:none;border:none;color:#7a4a48;font-size:11.5px;cursor:pointer;text-decoration:underline;}
+  .empty{color:var(--muted);font-size:13px;text-align:center;padding:24px 10px;}
+
+  .tzhint{font-size:11px;color:var(--muted);margin-top:4px;}
+  footer.hint{text-align:center;color:var(--muted);font-size:11px;padding:20px 24px 4px;line-height:1.6;}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <span class="tail mono" id="tailBadge">MATRÍCULA</span>
+  <h1>Libro de Vuelo Digital</h1>
+  <p>Registro de vuelos · Horómetro · Mantenimiento</p>
+</header>
+
+<div class="gauge-panel" id="gaugePanel">
+  <div class="gauge-wrap">
+    <svg width="86" height="86" viewBox="0 0 86 86">
+      <circle cx="43" cy="43" r="36" fill="none" stroke="#1c2740" stroke-width="8"/>
+      <circle id="gaugeArc" cx="43" cy="43" r="36" fill="none" stroke="#e8a33d" stroke-width="8"
+        stroke-linecap="round" stroke-dasharray="226" stroke-dashoffset="226" transform="rotate(-90 43 43)"/>
+      <text id="gaugeText" x="43" y="48" text-anchor="middle" font-family="IBM Plex Mono" font-size="15" fill="#e7ecf3" font-weight="600">0.0</text>
+    </svg>
+  </div>
+  <div class="gauge-info">
+    <div class="label">Acumulado desde último mantenimiento</div>
+    <div class="value" id="gaugeValue">0.0 h</div>
+    <div class="sub" id="gaugeSub">Faltan 25.0 h para la próxima inspección de 25h</div>
+    <div class="alert-banner" id="alertBanner" style="display:none;">
+      ⚠️ Se cumplieron 25 horas de vuelo desde el último mantenimiento. Programa la inspección.
+    </div>
+    <button class="reset-btn" id="resetBtn">Registrar mantenimiento y reiniciar contador</button>
+  </div>
+</div>
+<div class="totalhoras">Horas totales del avión (último horómetro): <b id="totalHorasAvion">—</b></div>
+
+<nav class="tabs">
+  <button class="tab-btn active" data-tab="vuelo">Nuevo vuelo</button>
+  <button class="tab-btn" data-tab="historial">Historial</button>
+  <button class="tab-btn" data-tab="mantenimiento">Mantenimiento</button>
+</nav>
+
+<!-- NUEVO VUELO -->
+<section class="tab-content active" id="tab-vuelo">
+  <div class="card">
+    <h2>Datos del vuelo</h2>
+    <label>Matrícula del avión</label>
+    <input type="text" id="f_matricula" class="mono-field" placeholder="Ej. HJ-521">
+
+    <label>Fecha del vuelo</label>
+    <input type="date" id="f_fecha">
+
+    <div class="grid2">
+      <div><label>Piloto</label><input type="text" id="f_piloto" placeholder="Nombre"></div>
+      <div><label>Copiloto</label><input type="text" id="f_copiloto" placeholder="Nombre"></div>
+    </div>
+
+    <div class="grid2">
+      <div><label>Origen</label><input type="text" id="f_origen" class="mono-field" placeholder="Ej. SKMD"></div>
+      <div><label>Destino</label><input type="text" id="f_destino" class="mono-field" placeholder="Ej. SKAD"></div>
+    </div>
+
+    <label>Zona horaria: Colombia (UTC−5) <span style="color:var(--muted);font-weight:400;">— se aplica automáticamente</span></label>
+
+    <div class="grid2">
+      <div><label>Salida (fecha y hora local) — opcional</label><input type="datetime-local" id="f_inicio"></div>
+      <div><label>Llegada (fecha y hora local) — opcional</label><input type="datetime-local" id="f_fin"></div>
+    </div>
+
+    <div class="grid2">
+      <div><label>Horómetro (Hobbs) inicial</label><input type="number" step="0.1" id="f_hobbsIni" class="mono-field" placeholder="Ej. 227.5"></div>
+      <div><label>Horómetro (Hobbs) final</label><input type="number" step="0.1" id="f_hobbsFin" class="mono-field" placeholder="Ej. 229.0"></div>
+    </div>
+
+    <div class="grid2">
+      <div><label># Aterrizajes</label><input type="number" id="f_aterrizajes" min="0" placeholder="1"></div>
+      <div><label>Combustible (opcional)</label><input type="number" step="0.1" id="f_combustible" class="mono-field" placeholder="Galones / Lts"></div>
+    </div>
+
+    <div class="utc-preview" id="utcPreview">
+      <span class="lbl">Salida UTC:</span> — &nbsp;·&nbsp; <span class="lbl">Llegada UTC:</span> — <br>
+      <span class="lbl">Duración (UTC):</span> — &nbsp;·&nbsp; <span class="lbl">Horas de vuelo (Hobbs):</span> —
+    </div>
+
+    <div class="msg" id="vueloMsg"></div>
+    <button class="primary" id="saveVuelo">Guardar vuelo</button>
+  </div>
+</section>
+
+<!-- HISTORIAL -->
+<section class="tab-content" id="tab-historial">
+  <button class="primary" id="pdfVuelos" style="margin-bottom:10px;">Generar PDF del historial de vuelos</button>
+  <button class="primary" id="xlsxVuelos" style="margin-bottom:14px;background:var(--cyan);">Exportar horas a Excel</button>
+  <div id="historialList"></div>
+</section>
+
+<!-- MANTENIMIENTO -->
+<section class="tab-content" id="tab-mantenimiento">
+  <div class="card">
+    <h2>Registrar mantenimiento</h2>
+    <div class="grid2">
+      <div><label>Fecha</label><input type="date" id="m_fecha"></div>
+      <div><label>Horas avión (horómetro)</label><input type="number" step="0.1" id="m_horas" class="mono-field" placeholder="Ej. 230.1"></div>
+    </div>
+    <label>Reporte / observaciones</label>
+    <textarea id="m_reporte" placeholder="Ej. Cambio bomba combustible mecánica por tiempo S/N 24.1584"></textarea>
+    <label>Acción correctiva</label>
+    <textarea id="m_accion" placeholder="Ej. Se reemplazó componente, prueba en tierra satisfactoria"></textarea>
+    <label>Técnico</label>
+    <input type="text" id="m_tecnico" placeholder="Nombre del técnico">
+    <div class="msg" id="mantMsg"></div>
+    <button class="primary" id="saveMant">Guardar registro de mantenimiento</button>
+  </div>
+  <button class="primary" id="pdfMant" style="margin-bottom:14px;">Generar PDF de mantenimiento</button>
+  <div id="mantList"></div>
+</section>
+
+<footer class="hint">
+  Los datos se guardan de forma privada en este dispositivo/cuenta. En iPhone, usa "Compartir → Añadir a pantalla de inicio" en Safari para abrir esta página como una app.
+</footer>
+
+<script>
+const $=s=>document.querySelector(s);
+const $$=s=>document.querySelectorAll(s);
+
+const DEFAULTS = { matricula:'HJ-521', origen:'SKMD', offset:-5, piloto:'Santiago Rendón', copiloto:'Juan Esteban Saldarriaga' };
+let state = { flights:[], maintenance:[], settings:{ matricula:'', origen:'', offset:-5, acumulado:0, totalHoras:0 } };
+
+// ---------- storage ----------
+async function loadAll(){
+  try{ const v=localStorage.getItem('lv_flights'); state.flights = v? JSON.parse(v):[]; }catch(e){ state.flights=[]; }
+  try{ const v=localStorage.getItem('lv_maintenance'); state.maintenance = v? JSON.parse(v):[]; }catch(e){ state.maintenance=[]; }
+  try{ const v=localStorage.getItem('lv_settings'); state.settings = v? JSON.parse(v):state.settings; }catch(e){}
+}
+async function saveFlights(){ try{ localStorage.setItem('lv_flights', JSON.stringify(state.flights)); }catch(e){ console.error(e); alert('No se pudo guardar en este dispositivo. ¿Estás en modo de navegación privada?'); } }
+async function saveMaint(){ try{ localStorage.setItem('lv_maintenance', JSON.stringify(state.maintenance)); }catch(e){ console.error(e); alert('No se pudo guardar en este dispositivo. ¿Estás en modo de navegación privada?'); } }
+async function saveSettings(){ try{ localStorage.setItem('lv_settings', JSON.stringify(state.settings)); }catch(e){ console.error(e); } }
+
+// ---------- fixed timezone ----------
+const COLOMBIA_OFFSET = -5;
+
+// ---------- time helpers ----------
+// Interprets a "YYYY-MM-DDTHH:MM" local wall-clock string at the given UTC offset (hours),
+// and returns the correct absolute UTC Date. UTC = local_wallclock - offset_hours.
+function localToUTCDate(localStr, offsetHours){
+  const [datePart, timePart] = localStr.split('T');
+  const [y,m,d] = datePart.split('-').map(Number);
+  const [hh,mm] = timePart.split(':').map(Number);
+  let ms = Date.UTC(y, m-1, d, hh, mm, 0);
+  ms -= offsetHours*3600000;
+  return new Date(ms);
+}
+function fmtUTC(date){
+  const p = n=>String(n).padStart(2,'0');
+  return `${date.getUTCFullYear()}-${p(date.getUTCMonth()+1)}-${p(date.getUTCDate())} ${p(date.getUTCHours())}:${p(date.getUTCMinutes())}Z`;
+}
+function minutesToHHMM(totalMin){
+  const sign = totalMin<0?'-':'';
+  totalMin = Math.abs(totalMin);
+  const h = Math.floor(totalMin/60), m = Math.round(totalMin%60);
+  return `${sign}${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
+}
+function hobbsDiff(ini,fin){
+  // decimal (tenths of an hour) subtraction, NOT sexagesimal
+  return Math.round((parseFloat(fin)-parseFloat(ini))*10)/10;
+}
+
+// ---------- live UTC preview ----------
+function updatePreview(){
+  const ini = $('#f_inicio').value, fin = $('#f_fin').value;
+  const hIni = $('#f_hobbsIni').value, hFin = $('#f_hobbsFin').value;
+  const box = $('#utcPreview');
+  let timeLine;
+  if(!ini || !fin){
+    timeLine = `<span class="lbl">Salida UTC:</span> — &nbsp;·&nbsp; <span class="lbl">Llegada UTC:</span> — <br><span class="lbl">Duración (UTC):</span> — <span class="lbl">(hora no registrada)</span>`;
+  }else{
+    const dIni = localToUTCDate(ini, COLOMBIA_OFFSET), dFin = localToUTCDate(fin, COLOMBIA_OFFSET);
+    const durMin = Math.round((dFin-dIni)/60000);
+    const durTxt = durMin>=0 ? minutesToHHMM(durMin) : '⚠ llegada antes que salida';
+    timeLine = `<span class="lbl">Salida UTC:</span> ${fmtUTC(dIni)} &nbsp;·&nbsp; <span class="lbl">Llegada UTC:</span> ${fmtUTC(dFin)}<br><span class="lbl">Duración (UTC):</span> ${durTxt}`;
+  }
+  let hobbsTxt = '—';
+  if(hIni!=='' && hFin!==''){
+    const d = hobbsDiff(hIni,hFin);
+    hobbsTxt = (isNaN(d)?'—': (d<0? `⚠ ${d} (revisar valores)` : d.toFixed(1)+' h'));
+  }
+  box.innerHTML = `${timeLine}<br><span class="lbl">Horas de vuelo (Hobbs):</span> ${hobbsTxt}`;
+}
+['f_inicio','f_fin','f_hobbsIni','f_hobbsFin'].forEach(id=>{
+  document.addEventListener('input', e=>{ if(e.target.id===id) updatePreview(); });
+  document.addEventListener('change', e=>{ if(e.target.id===id) updatePreview(); });
+});
+
+// ---------- gauge / alert ----------
+function renderGauge(){
+  const acum = state.settings.acumulado || 0;
+  const target = 25;
+  const pct = Math.min(acum/target,1);
+  const circumference = 226; // 2*pi*36
+  $('#gaugeArc').setAttribute('stroke-dashoffset', circumference*(1-pct));
+  $('#gaugeArc').setAttribute('stroke', acum>=target ? '#e2584f' : '#e8a33d');
+  $('#gaugeText').textContent = acum.toFixed(1);
+  $('#gaugeValue').textContent = acum.toFixed(1)+' h';
+  const panel = $('#gaugePanel');
+  const banner = $('#alertBanner');
+  if(acum>=target){
+    panel.classList.add('alert');
+    banner.style.display='block';
+    $('#gaugeSub').textContent = `Se superó el límite de 25 h (+${(acum-target).toFixed(1)} h)`;
+  }else{
+    panel.classList.remove('alert');
+    banner.style.display='none';
+    $('#gaugeSub').textContent = `Faltan ${(target-acum).toFixed(1)} h para la próxima inspección de 25h`;
+  }
+  $('#totalHorasAvion').textContent = state.settings.totalHoras ? state.settings.totalHoras.toFixed(1)+' h' : '—';
+  $('#tailBadge').textContent = state.settings.matricula || DEFAULTS.matricula;
+}
+$('#resetBtn').addEventListener('click', async ()=>{
+  if(!confirm('¿Confirmas que se realizó el mantenimiento y deseas reiniciar el contador de 25h?')) return;
+  state.settings.acumulado = 0;
+  await saveSettings();
+  renderGauge();
+});
+
+// ---------- tabs ----------
+$$('.tab-btn').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    $$('.tab-btn').forEach(b=>b.classList.remove('active'));
+    $$('.tab-content').forEach(c=>c.classList.remove('active'));
+    btn.classList.add('active');
+    $('#tab-'+btn.dataset.tab).classList.add('active');
+  });
+});
+
+// ---------- save vuelo ----------
+$('#saveVuelo').addEventListener('click', async ()=>{
+  const msg = $('#vueloMsg');
+  const matricula=$('#f_matricula').value.trim();
+  const fecha=$('#f_fecha').value;
+  const piloto=$('#f_piloto').value.trim();
+  const copiloto=$('#f_copiloto').value.trim();
+  const origen=$('#f_origen').value.trim().toUpperCase();
+  const destino=$('#f_destino').value.trim().toUpperCase();
+  const offset=COLOMBIA_OFFSET;
+  const ini=$('#f_inicio').value, fin=$('#f_fin').value;
+  const hobbsIni=$('#f_hobbsIni').value, hobbsFin=$('#f_hobbsFin').value;
+  const aterrizajes = $('#f_aterrizajes').value;
+  const combustible = $('#f_combustible').value;
+
+  if(!matricula||!fecha||!piloto||!copiloto||!origen||!destino||hobbsIni===''||hobbsFin===''||aterrizajes===''){
+    msg.className='msg err'; msg.textContent='Todos los campos son obligatorios, excepto hora y combustible.'; return;
+  }
+  let dIni=null, dFin=null, durMin=null;
+  if(ini && fin){
+    dIni=localToUTCDate(ini,offset); dFin=localToUTCDate(fin,offset);
+    durMin=Math.round((dFin-dIni)/60000);
+    if(durMin<0){ msg.className='msg err'; msg.textContent='La llegada es anterior a la salida. Revisa fechas/horas.'; return; }
+  }
+  const hDiff=hobbsDiff(hobbsIni,hobbsFin);
+  if(hDiff<0){ msg.className='msg err'; msg.textContent='El horómetro final es menor que el inicial. Revisa los valores.'; return; }
+
+  const flight={
+    id:Date.now(),
+    matricula, fecha, piloto, copiloto, origen, destino,
+    offset,
+    inicioLocal:ini||null, finLocal:fin||null,
+    inicioUTC:dIni? fmtUTC(dIni):null, finUTC:dFin? fmtUTC(dFin):null,
+    duracion:durMin!=null? minutesToHHMM(durMin):null,
+    hobbsIni:parseFloat(hobbsIni), hobbsFin:parseFloat(hobbsFin), hobbsTotal:hDiff,
+    aterrizajes: parseInt(aterrizajes,10),
+    combustible: combustible!==''? parseFloat(combustible):null,
+    notas:''
+  };
+  state.flights.unshift(flight);
+  state.settings.matricula=matricula;
+  state.settings.origen=origen;
+  state.settings.offset=offset;
+  state.settings.acumulado=(state.settings.acumulado||0)+hDiff;
+  state.settings.totalHoras=flight.hobbsFin;
+  await saveFlights(); await saveSettings();
+  renderGauge(); renderHistorial();
+
+  msg.className='msg ok'; msg.textContent=`Vuelo guardado. Duración UTC ${flight.duracion}, ${hDiff.toFixed(1)} h de horómetro.`;
+  ['f_fecha','f_destino','f_inicio','f_fin','f_hobbsIni','f_hobbsFin','f_aterrizajes','f_combustible'].forEach(id=>$('#'+id).value='');
+  $('#f_fecha').value = new Date().toISOString().slice(0,10);
+  $('#f_piloto').value = DEFAULTS.piloto;
+  $('#f_copiloto').value = DEFAULTS.copiloto;
+  $('#f_origen').value = state.settings.origen || DEFAULTS.origen;
+  updatePreview();
+});
+
+// ---------- historial ----------
+function renderHistorial(){
+  const list=$('#historialList');
+  if(state.flights.length===0){ list.innerHTML='<div class="empty">Aún no hay vuelos registrados.</div>'; return; }
+  list.innerHTML = state.flights.map(f=>`
+    <div class="flight-item">
+      <button class="del" data-id="${f.id}">eliminar</button>
+      <div class="top-row"><span class="route">${f.origen} → ${f.destino}</span><span class="date">${f.fecha}</span></div>
+      <div class="meta">
+        <b>${f.matricula}</b> · ${f.piloto}${f.copiloto? ' / '+f.copiloto:''}<br>
+        ${f.inicioUTC? `UTC: <span class="utc">${f.inicioUTC} → ${f.finUTC}</span> · Duración <span class="utc">${f.duracion}</span><br>` : `<span class="utc">Hora no registrada</span><br>`}
+        Horómetro: <span class="hobbs">${f.hobbsIni.toFixed(1)} → ${f.hobbsFin.toFixed(1)}</span> = <span class="hobbs">${f.hobbsTotal.toFixed(1)} h</span> · ${f.aterrizajes!=null? f.aterrizajes:'—'} aterrizaje(s)${f.combustible!=null?` · ${f.combustible} combustible`:''}
+        ${f.notas? `<br><span style="color:#c99a4a;font-size:11px;">ⓘ ${f.notas}</span>`:''}
+      </div>
+    </div>
+  `).join('');
+  $$('.del').forEach(b=>b.addEventListener('click', async ()=>{
+    if(!confirm('¿Eliminar este vuelo del historial?')) return;
+    state.flights = state.flights.filter(f=>f.id!==parseInt(b.dataset.id,10));
+    await saveFlights(); renderHistorial();
+  }));
+}
+
+// ---------- mantenimiento ----------
+$('#saveMant').addEventListener('click', async ()=>{
+  const msg=$('#mantMsg');
+  const fecha=$('#m_fecha').value, horas=$('#m_horas').value;
+  const reporte=$('#m_reporte').value.trim(), accion=$('#m_accion').value.trim(), tecnico=$('#m_tecnico').value.trim();
+  if(!fecha||!reporte){ msg.className='msg err'; msg.textContent='Completa al menos la fecha y el reporte.'; return; }
+  state.maintenance.unshift({id:Date.now(), fecha, horas: horas? parseFloat(horas):null, reporte, accion, tecnico});
+  await saveMaint();
+  renderMant();
+  msg.className='msg ok'; msg.textContent='Registro de mantenimiento guardado.';
+  ['m_fecha','m_horas','m_reporte','m_accion','m_tecnico'].forEach(id=>$('#'+id).value='');
+});
+function renderMant(){
+  const list=$('#mantList');
+  if(state.maintenance.length===0){ list.innerHTML='<div class="empty">Sin registros de mantenimiento.</div>'; return; }
+  list.innerHTML = state.maintenance.map(m=>`
+    <div class="maint-item">
+      <button class="del2" data-id="${m.id}">eliminar</button>
+      <div class="top-row"><span class="route">${m.fecha}</span>${m.horas? `<span class="hobbs">${m.horas.toFixed(1)} h</span>`:''}</div>
+      <div class="meta"><b>Reporte:</b> ${m.reporte}${m.accion? `<br><b>Acción correctiva:</b> ${m.accion}`:''}${m.tecnico? `<br><b>Técnico:</b> ${m.tecnico}`:''}</div>
+    </div>
+  `).join('');
+  $$('.del2').forEach(b=>b.addEventListener('click', async ()=>{
+    if(!confirm('¿Eliminar este registro de mantenimiento?')) return;
+    state.maintenance = state.maintenance.filter(m=>m.id!==parseInt(b.dataset.id,10));
+    await saveMaint(); renderMant();
+  }));
+}
+
+['f_piloto','f_copiloto'].forEach(id=>{
+  document.getElementById(id).addEventListener('focus', e=> e.target.select());
+});
+
+$('#xlsxVuelos').addEventListener('click', ()=>{
+  if(!window.XLSX){ alert('No se pudo cargar el generador de Excel. Verifica tu conexión a internet.'); return; }
+  if(state.flights.length===0){ alert('No hay vuelos registrados todavía.'); return; }
+  const matricula = state.settings.matricula || DEFAULTS.matricula;
+  const rows = state.flights.slice().reverse().map(f=>({
+    'Fecha': f.fecha,
+    'Matrícula': f.matricula,
+    'Piloto': f.piloto,
+    'Copiloto': f.copiloto,
+    'Origen': f.origen,
+    'Destino': f.destino,
+    'Salida UTC': f.inicioUTC || '',
+    'Llegada UTC': f.finUTC || '',
+    'Duración': f.duracion || '',
+    'Hobbs Inicial': f.hobbsIni,
+    'Hobbs Final': f.hobbsFin,
+    'Horas de vuelo': f.hobbsTotal,
+    'Aterrizajes': f.aterrizajes!=null? f.aterrizajes:'',
+    'Combustible': f.combustible!=null? f.combustible:'',
+    'Notas': f.notas||''
+  }));
+  const totalHoras = state.flights.reduce((s,f)=>s+f.hobbsTotal,0);
+  rows.push({}); // fila en blanco
+  rows.push({'Fecha':'TOTAL','Horas de vuelo':Math.round(totalHoras*10)/10});
+  const ws = XLSX.utils.json_to_sheet(rows);
+  ws['!cols'] = [{wch:11},{wch:10},{wch:22},{wch:22},{wch:8},{wch:8},{wch:14},{wch:14},{wch:9},{wch:11},{wch:11},{wch:12},{wch:10},{wch:11},{wch:30}];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Vuelos');
+  XLSX.writeFile(wb, `horas-vuelo-${matricula.replace(/\s/g,'')}.xlsx`);
+});
+
+// ---------- PDF reports ----------
+function ensureJsPDF(){
+  if(!window.jspdf || !window.jspdf.jsPDF){
+    alert('No se pudo cargar el generador de PDF. Verifica tu conexión a internet e inténtalo de nuevo.');
+    return null;
+  }
+  return window.jspdf.jsPDF;
+}
+$('#pdfVuelos').addEventListener('click', ()=>{
+  const jsPDF = ensureJsPDF(); if(!jsPDF) return;
+  if(state.flights.length===0){ alert('No hay vuelos registrados todavía.'); return; }
+  const doc = new jsPDF({orientation:'landscape'});
+  const matricula = state.settings.matricula || DEFAULTS.matricula;
+  doc.setFontSize(14);
+  doc.text(`Libro de Vuelo - ${matricula}`, 14, 14);
+  doc.setFontSize(9);
+  doc.text(`Generado: ${new Date().toLocaleString()}`, 14, 20);
+
+  const rows = state.flights.slice().reverse().map(f=>[
+    f.fecha,
+    f.matricula, f.piloto, f.copiloto,
+    f.origen, f.destino,
+    f.inicioUTC? f.inicioUTC.replace(' ','\n'):'-', f.finUTC? f.finUTC.replace(' ','\n'):'-',
+    f.duracion||'-',
+    f.hobbsIni.toFixed(1), f.hobbsFin.toFixed(1), f.hobbsTotal.toFixed(1),
+    String(f.aterrizajes),
+    f.combustible!=null? String(f.combustible):'-'
+  ]);
+  doc.autoTable({
+    startY:26,
+    head:[['Fecha','Matrícula','Piloto','Copiloto','Origen','Destino','Salida UTC','Llegada UTC','Duración','Hobbs Ini','Hobbs Fin','Horas','Aterriz.','Combust.']],
+    body:rows,
+    styles:{fontSize:7,cellPadding:2},
+    headStyles:{fillColor:[26,20,8], textColor:[232,163,61]},
+  });
+  const totalHoras = state.flights.reduce((s,f)=>s+f.hobbsTotal,0);
+  const y = doc.lastAutoTable.finalY + 8;
+  doc.setFontSize(10);
+  doc.text(`Total de horas voladas en el historial: ${totalHoras.toFixed(1)} h`, 14, y);
+  doc.text(`Acumulado desde último mantenimiento: ${(state.settings.acumulado||0).toFixed(1)} h`, 14, y+6);
+  doc.save(`libro-vuelo-${matricula.replace(/\s/g,'')}.pdf`);
+});
+$('#pdfMant').addEventListener('click', ()=>{
+  const jsPDF = ensureJsPDF(); if(!jsPDF) return;
+  if(state.maintenance.length===0){ alert('No hay registros de mantenimiento todavía.'); return; }
+  const doc = new jsPDF({orientation:'landscape'});
+  const matricula = state.settings.matricula || DEFAULTS.matricula;
+  doc.setFontSize(14);
+  doc.text(`Reporte de Mantenimiento - ${matricula}`, 14, 14);
+  doc.setFontSize(9);
+  doc.text(`Generado: ${new Date().toLocaleString()}`, 14, 20);
+  const rows = state.maintenance.slice().reverse().map(m=>[
+    m.fecha, m.horas!=null? m.horas.toFixed(1):'-', m.reporte, m.accion||'-', m.tecnico||'-'
+  ]);
+  doc.autoTable({
+    startY:26,
+    head:[['Fecha','Horas avión','Reporte / observaciones','Acción correctiva','Técnico']],
+    body:rows,
+    styles:{fontSize:8,cellPadding:2.5},
+    headStyles:{fillColor:[26,20,8], textColor:[232,163,61]},
+  });
+  doc.save(`mantenimiento-${matricula.replace(/\s/g,'')}.pdf`);
+});
+
+// ---------- histórico (hojas 01-09 del libro físico HJ-521) ----------
+const SEED_FLIGHTS = [
+  // fecha, piloto, copiloto, origen, destino, inicioLocal, finLocal, hobbsIni, hobbsFin, aterrizajes, notas
+  {fecha:'2024-11-13', piloto:'Juan Esteban Saldarriaga', copiloto:'Julio Consuegra', origen:'SKMD', destino:'SKMD', ini:'2024-11-13T14:30', fin:'2024-11-13T15:10', hIni:210.3, hFin:211.0, ater:null, notas:'Horómetro estimado (calculado hacia atrás desde el 12/01/25).'},
+  {fecha:'2024-11-29', piloto:'Julio Consuegra', copiloto:'Juan Esteban Saldarriaga', origen:'SKMD', destino:'SKMD', ini:'2024-11-29T16:10', fin:'2024-11-29T16:40', hIni:211.0, hFin:211.5, ater:1, notas:'Horómetro estimado.'},
+  {fecha:'2024-11-30', piloto:'Julio Consuegra', copiloto:'Santiago Rendón', origen:'SKMD', destino:'SKMD', ini:'2024-11-30T15:00', fin:'2024-11-30T15:30', hIni:211.5, hFin:212.0, ater:null, notas:'Horómetro estimado.'},
+  {fecha:'2024-12-03', piloto:'Julio Consuegra', copiloto:'Santiago Rendón', origen:'SKMD', destino:'SKMD', ini:null, fin:null, hIni:212.0, hFin:212.6, ater:null, notas:'Hora ilegible en el original. Horómetro estimado.'},
+  {fecha:'2025-01-09', piloto:'Julio Consuegra', copiloto:'Santiago Rendón', origen:'SKMD', destino:'SKMD', ini:null, fin:null, hIni:212.6, hFin:214.0, ater:null, notas:'Hora ilegible en el original. Horómetro estimado.'},
+  {fecha:'2025-01-12', piloto:'Julio Consuegra', copiloto:'Juan Esteban Saldarriaga', origen:'SKMD', destino:'SKMD', ini:null, fin:null, hIni:214.0, hFin:215.2, ater:3, notas:''},
+  {fecha:'2025-01-12', piloto:'Julio Consuegra', copiloto:'Santiago Rendón', origen:'SKMD', destino:'SKMD', ini:null, fin:null, hIni:215.2, hFin:216.4, ater:2, notas:'Segundo vuelo del día.'},
+  {fecha:'2025-01-17', piloto:'Julio Consuegra', copiloto:'Juan Esteban Saldarriaga', origen:'SKMD', destino:'SKMD', ini:null, fin:null, hIni:216.4, hFin:216.9, ater:1, notas:''},
+  {fecha:'2025-02-15', piloto:'Julio Consuegra', copiloto:'Santiago Rendón', origen:'SKMD', destino:'SKMD', ini:null, fin:null, hIni:217.2, hFin:218.5, ater:1, notas:''},
+  {fecha:'2025-03-25', piloto:'Daniel Gutiérrez', copiloto:'Santiago Rendón', origen:'SKMD', destino:'SKMD', ini:null, fin:null, hIni:218.5, hFin:220.0, ater:1, notas:''},
+  {fecha:'2025-03-27', piloto:'Julio Consuegra', copiloto:'Juan Esteban Saldarriaga', origen:'SKMD', destino:'SKMD', ini:null, fin:null, hIni:220.0, hFin:222.0, ater:5, notas:''},
+  {fecha:'2025-03-29', piloto:'Julio Consuegra', copiloto:'Santiago Rendón', origen:'SKMD', destino:'SKMD', ini:null, fin:null, hIni:222.0, hFin:223.1, ater:4, notas:''},
+  {fecha:'2025-04-05', piloto:'Julio Consuegra', copiloto:'Santiago Rendón', origen:'SKMD', destino:'SKMD', ini:null, fin:null, hIni:223.1, hFin:223.7, ater:3, notas:''},
+  {fecha:'2025-04-08', piloto:'Santiago Rendón', copiloto:'Julio Consuegra', origen:'SKMD', destino:'SKMD', ini:'2025-04-08T09:00', fin:'2025-04-08T10:18', hIni:223.7, hFin:225.0, ater:3, notas:'Horómetro inferido y confirmado por el usuario.'},
+  {fecha:'2025-04-16', piloto:'Julio Consuegra', copiloto:'Santiago Rendón', origen:'SKMD', destino:'SKMD', ini:null, fin:null, hIni:225.0, hFin:226.0, ater:1, notas:''},
+  {fecha:'2025-06-02', piloto:'Santiago Rendón', copiloto:'Julio Consuegra', origen:'SKAD', destino:'SKAD', ini:null, fin:null, hIni:226.0, hFin:227.5, ater:1, notas:''},
+  {fecha:'2025-09-13', piloto:'Santiago Rendón', copiloto:'Julio Consuegra', origen:'SKMD', destino:'SKMD', ini:null, fin:null, hIni:227.5, hFin:229.0, ater:2, notas:''},
+  {fecha:'2025-09-14', piloto:'Juan Esteban Saldarriaga', copiloto:'Julio Consuegra', origen:'SKMD', destino:'SKMD', ini:null, fin:null, hIni:229.0, hFin:230.1, ater:1, notas:''},
+  {fecha:'2025-10-17', piloto:'Juan Esteban Saldarriaga', copiloto:'Julio Consuegra', origen:'SKMD', destino:'SKMD', ini:'2025-10-17T12:34', fin:'2025-10-17T13:47', hIni:230.1, hFin:231.3, ater:1, notas:'Horómetro estimado por interpolación (no registrado en el original).'},
+  {fecha:'2025-11-03', piloto:'Santiago Rendón', copiloto:'Julio Consuegra', origen:'SKMD', destino:'SKMD', ini:null, fin:null, hIni:231.9, hFin:233.2, ater:1, notas:'Hay un salto de 0.6h sin explicar entre este vuelo y el del 17/10/25.'},
+  {fecha:'2025-11-06', piloto:'Santiago Rendón', copiloto:'Julio Consuegra', origen:'SKMD', destino:'SKMD', ini:null, fin:null, hIni:233.2, hFin:234.5, ater:1, notas:''},
+];
+const SEED_MAINT = [
+  {fecha:'2024-11-13', horas:null, reporte:'Entrenamiento EOH.', accion:'', tecnico:''},
+  {fecha:'2024-11-29', horas:210, reporte:'Cambio bujías (8).', accion:'', tecnico:''},
+  {fecha:'2025-09-14', horas:230.1, reporte:'Cambio bomba combustible mecánica por tiempo S/N 24.1584; cambio llanta de nariz; cambio sensor presión de aceite.', accion:'', tecnico:''},
+  {fecha:'2025-04-08', horas:225.0, reporte:'Chequeo de vuelo a Santiago Rendón Gaviria, PPA 2843. Resultado satisfactorio.', accion:'', tecnico:'Julio Consuegra, IVA 1886'},
+  {fecha:'2025-10-17', horas:231.3, reporte:'Chequeo de vuelo a Juan Esteban Saldarriaga, PPA 2812, C.C. 98546224, ante inspector UAEAC. Resultado satisfactorio.', accion:'', tecnico:'Cap. Claudia Cárdenas Zárate (UAEAC - Secretaría Seguridad Operacional)'},
+  {fecha:'2025-11-06', horas:234.5, reporte:'Chequeo de vuelo a Santiago Rendón, PPA 2843. Resultado satisfactorio.', accion:'', tecnico:'Julio Consuegra, IVA 1886'},
+];
+async function importHistorico(){
+  const flights = SEED_FLIGHTS.map((s,i)=>{
+    let dIni=null, dFin=null, durMin=null;
+    if(s.ini && s.fin){
+      dIni=localToUTCDate(s.ini,COLOMBIA_OFFSET); dFin=localToUTCDate(s.fin,COLOMBIA_OFFSET);
+      durMin=Math.round((dFin-dIni)/60000);
+    }
+    return {
+      id:Date.now()+i,
+      matricula:'HJ-521', fecha:s.fecha, piloto:s.piloto, copiloto:s.copiloto, origen:s.origen, destino:s.destino,
+      offset:COLOMBIA_OFFSET,
+      inicioLocal:s.ini, finLocal:s.fin,
+      inicioUTC:dIni? fmtUTC(dIni):null, finUTC:dFin? fmtUTC(dFin):null,
+      duracion:durMin!=null? minutesToHHMM(durMin):null,
+      hobbsIni:s.hIni, hobbsFin:s.hFin, hobbsTotal:Math.round((s.hFin-s.hIni)*10)/10,
+      aterrizajes:s.ater, combustible:null, notas:s.notas||''
+    };
+  });
+  // orden cronológico ascendente en el array; el historial se muestra más reciente primero
+  state.flights = flights.slice().reverse();
+  state.maintenance = SEED_MAINT.slice().reverse().map((m,i)=>({id:Date.now()+1000+i, ...m}));
+  // acumulado de 25h: horas voladas desde el último mantenimiento real (14/09/25)
+  const lastMaintDate = '2025-09-14';
+  state.settings.acumulado = flights.filter(f=>f.fecha>lastMaintDate).reduce((s,f)=>s+f.hobbsTotal,0);
+  state.settings.totalHoras = flights[flights.length-1].hobbsFin;
+  state.settings.matricula = 'HJ-521';
+  state.settings.origen = 'SKMD';
+  state.settings.historicoImportado = true;
+  await saveFlights(); await saveMaint(); await saveSettings();
+}
+
+// ---------- init ----------
+(async function init(){
+  await loadAll();
+  if(!state.settings.historicoImportado && state.flights.length===0){
+    await importHistorico();
+  }
+  $('#f_matricula').value = state.settings.matricula || DEFAULTS.matricula;
+  $('#f_origen').value = state.settings.origen || DEFAULTS.origen;
+  $('#f_piloto').value = DEFAULTS.piloto;
+  $('#f_copiloto').value = DEFAULTS.copiloto;
+  const today = new Date().toISOString().slice(0,10);
+  $('#f_fecha').value = today;
+  $('#m_fecha').value = today;
+  renderGauge(); renderHistorial(); renderMant(); updatePreview();
+})();
+</script>
+</body>
+</html>
