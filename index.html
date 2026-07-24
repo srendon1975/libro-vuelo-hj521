@@ -11,6 +11,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <style>
   :root{
     --bg:#0a0e16;
@@ -150,10 +151,46 @@
 
   .tzhint{font-size:11px;color:var(--muted);margin-top:4px;}
   footer.hint{text-align:center;color:var(--muted);font-size:11px;padding:20px 24px 4px;line-height:1.6;}
+
+  #loginScreen{
+    position:fixed;inset:0;background:var(--bg);z-index:100;
+    display:flex;align-items:center;justify-content:center;padding:20px;
+  }
+  #loginScreen.hidden{display:none;}
+  .login-card{
+    width:100%;max-width:340px;background:var(--panel);border:1px solid var(--border);
+    border-radius:16px;padding:28px 24px;text-align:center;
+  }
+  .login-card h2{font-family:'Space Grotesk';margin:14px 0 4px;font-size:19px;}
+  .login-card p{color:var(--muted);font-size:12.5px;margin:0 0 20px;}
+  .login-card label{text-align:left;}
+  .login-card input{text-align:center;font-family:'IBM Plex Mono';font-size:16px;letter-spacing:1px;}
+  #app{display:none;}
+  #app.visible{display:block;}
+  #logoutBtn{
+    position:fixed;top:12px;right:12px;background:none;border:1px solid var(--border);
+    color:var(--muted);font-size:11px;padding:6px 10px;border-radius:8px;cursor:pointer;z-index:5;
+  }
 </style>
 </head>
 <body>
 
+<div id="loginScreen">
+  <div class="login-card">
+    <span class="tail mono">HJ-521</span>
+    <h2>Libro de Vuelo Digital</h2>
+    <p>Ingresa con tu cédula y tu PIN de 4 dígitos.</p>
+    <label>Cédula</label>
+    <input type="text" inputmode="numeric" id="l_cedula" placeholder="Cédula" style="margin-bottom:12px;">
+    <label>PIN (4 dígitos)</label>
+    <input type="password" inputmode="numeric" maxlength="4" id="l_pin" placeholder="••••">
+    <div class="msg" id="loginMsg" style="text-align:left;"></div>
+    <button class="primary" id="loginBtn">Ingresar</button>
+  </div>
+</div>
+
+<button id="logoutBtn" style="display:none;">Cerrar sesión</button>
+<div id="app">
 <header class="top">
   <span class="tail mono" id="tailBadge">MATRÍCULA</span>
   <h1>Libro de Vuelo Digital</h1>
@@ -265,6 +302,7 @@
 <footer class="hint">
   Los datos se guardan en la nube (Firebase) y se sincronizan en tiempo real entre todos los que abran esta página. En iPhone, usa "Compartir → Añadir a pantalla de inicio" en Safari para abrir esta página como una app.
 </footer>
+</div><!-- /#app -->
 
 <script>
 const $=s=>document.querySelector(s);
@@ -284,8 +322,46 @@ const firebaseConfig = {
 };
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
+const auth = firebase.auth();
 try{ db.enablePersistence({synchronizeTabs:true}).catch(()=>{}); }catch(e){}
 const docRef = db.collection('libro').doc('hj521');
+
+// ---------- autenticación (cédula + PIN de 4 dígitos) ----------
+function credsToEmailPass(cedula, pin){
+  return { email: `${cedula.trim()}@hj521.app`, pass: `${pin.trim()}-hj521` };
+}
+$('#loginBtn').addEventListener('click', async ()=>{
+  const msg = $('#loginMsg');
+  const cedula = $('#l_cedula').value.trim();
+  const pin = $('#l_pin').value.trim();
+  if(!cedula || !/^\d{4}$/.test(pin)){
+    msg.className='msg err'; msg.textContent='Ingresa tu cédula y un PIN de 4 dígitos.'; return;
+  }
+  const {email, pass} = credsToEmailPass(cedula, pin);
+  $('#loginBtn').disabled = true; $('#loginBtn').textContent='Ingresando...';
+  try{
+    await auth.signInWithEmailAndPassword(email, pass);
+  }catch(e){
+    msg.className='msg err'; msg.textContent='Cédula o PIN incorrectos.';
+    $('#loginBtn').disabled = false; $('#loginBtn').textContent='Ingresar';
+  }
+});
+$('#l_pin').addEventListener('keydown', e=>{ if(e.key==='Enter') $('#loginBtn').click(); });
+$('#logoutBtn').addEventListener('click', ()=> auth.signOut());
+let appStarted = false;
+auth.onAuthStateChanged(user=>{
+  if(user){
+    $('#loginScreen').classList.add('hidden');
+    $('#app').classList.add('visible');
+    $('#logoutBtn').style.display='block';
+    if(!appStarted){ appStarted = true; startApp(); }
+  }else{
+    $('#loginScreen').classList.remove('hidden');
+    $('#app').classList.remove('visible');
+    $('#logoutBtn').style.display='none';
+    $('#loginBtn').disabled=false; $('#loginBtn').textContent='Ingresar';
+  }
+});
 
 // ---------- storage (lee/escribe en Firestore; todos los dispositivos ven los mismos datos) ----------
 async function loadAll(){
@@ -681,8 +757,8 @@ async function importHistorico(){
   await saveFlights(); await saveMaint(); await saveSettings();
 }
 
-// ---------- init ----------
-(async function init(){
+// ---------- arranque de la app (solo tras iniciar sesión) ----------
+async function startApp(){
   await loadAll();
   if(!state.settings.historicoImportado && state.flights.length===0){
     await importHistorico();
@@ -696,7 +772,7 @@ async function importHistorico(){
   $('#m_fecha').value = today;
   renderGauge(); renderHistorial(); renderMant(); updatePreview();
   startRealtimeSync();
-})();
+}
 </script>
 </body>
 </html>
