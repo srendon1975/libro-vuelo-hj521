@@ -295,7 +295,8 @@
     <div class="msg" id="mantMsg"></div>
     <button class="primary" id="saveMant">Guardar registro de mantenimiento</button>
   </div>
-  <button class="primary" id="pdfMant" style="margin-bottom:14px;">Generar PDF de mantenimiento</button>
+  <button class="primary" id="pdfMant" style="margin-bottom:10px;">Generar PDF de mantenimiento</button>
+  <button class="reset-btn" id="reimportBtn" style="margin-bottom:14px;width:100%;">Recargar histórico (si faltan datos)</button>
   <div id="mantList"></div>
 </section>
 
@@ -560,7 +561,7 @@ function renderHistorial(){
   `).join('');
   $$('.del').forEach(b=>b.addEventListener('click', async ()=>{
     if(!confirm('¿Eliminar este vuelo del historial?')) return;
-    state.flights = state.flights.filter(f=>f.id!==parseInt(b.dataset.id,10));
+    state.flights = state.flights.filter(f=>String(f.id)!==b.dataset.id);
     await saveFlights(); renderHistorial();
   }));
 }
@@ -589,7 +590,7 @@ function renderMant(){
   `).join('');
   $$('.del2').forEach(b=>b.addEventListener('click', async ()=>{
     if(!confirm('¿Eliminar este registro de mantenimiento?')) return;
-    state.maintenance = state.maintenance.filter(m=>m.id!==parseInt(b.dataset.id,10));
+    state.maintenance = state.maintenance.filter(m=>String(m.id)!==b.dataset.id);
     await saveMaint(); renderMant();
   }));
 }
@@ -627,6 +628,15 @@ $('#xlsxVuelos').addEventListener('click', ()=>{
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Vuelos');
   XLSX.writeFile(wb, `horas-vuelo-${matricula.replace(/\s/g,'')}.xlsx`);
+});
+
+$('#reimportBtn').addEventListener('click', async ()=>{
+  if(!confirm('Esto va a volver a escribir los 21 vuelos y 6 registros de mantenimiento del histórico en la nube (sin borrar vuelos nuevos que hayas agregado). ¿Continuar?')) return;
+  $('#reimportBtn').disabled = true; $('#reimportBtn').textContent = 'Recargando...';
+  await importHistorico();
+  renderGauge(); renderHistorial(); renderMant();
+  $('#reimportBtn').disabled = false; $('#reimportBtn').textContent = 'Recargar histórico (si faltan datos)';
+  alert('Histórico recargado correctamente.');
 });
 
 // ---------- PDF reports ----------
@@ -734,7 +744,7 @@ async function importHistorico(){
       durMin=Math.round((dFin-dIni)/60000);
     }
     return {
-      id:Date.now()+i,
+      id:'seed-'+String(i+1).padStart(3,'0'),
       matricula:'HJ-521', fecha:s.fecha, piloto:s.piloto, copiloto:s.copiloto, origen:s.origen, destino:s.destino,
       offset:COLOMBIA_OFFSET,
       inicioLocal:s.ini, finLocal:s.fin,
@@ -744,17 +754,28 @@ async function importHistorico(){
       aterrizajes:s.ater, combustible:null, notas:s.notas||''
     };
   });
-  // orden cronológico ascendente en el array; el historial se muestra más reciente primero
-  state.flights = flights.slice().reverse();
-  state.maintenance = SEED_MAINT.slice().reverse().map((m,i)=>({id:Date.now()+1000+i, ...m}));
-  // acumulado de 25h: horas voladas desde el último mantenimiento real (14/09/25)
+  const maint = SEED_MAINT.map((m,i)=>({id:'seedm-'+String(i+1).padStart(3,'0'), ...m}));
+
+  // conserva cualquier vuelo/mantenimiento agregado por los pilotos (id que no empieza con "seed-"/"seedm-")
+  const otherFlights = (state.flights||[]).filter(f=> !String(f.id).startsWith('seed-'));
+  const otherMaint = (state.maintenance||[]).filter(m=> !String(m.id).startsWith('seedm-'));
+
+  state.flights = otherFlights.concat(flights).sort((a,b)=> (b.fecha||'').localeCompare(a.fecha||''));
+  state.maintenance = otherMaint.concat(maint).sort((a,b)=> (b.fecha||'').localeCompare(a.fecha||''));
+
+  // acumulado de 25h: horas voladas desde el último mantenimiento real (14/09/25), sobre TODOS los vuelos actuales
   const lastMaintDate = '2025-09-14';
-  state.settings.acumulado = flights.filter(f=>f.fecha>lastMaintDate).reduce((s,f)=>s+f.hobbsTotal,0);
-  state.settings.totalHoras = flights[flights.length-1].hobbsFin;
+  state.settings.acumulado = state.flights.filter(f=>f.fecha>lastMaintDate).reduce((s,f)=>s+(f.hobbsTotal||0),0);
+  state.settings.totalHoras = state.flights.reduce((max,f)=> (f.hobbsFin>max? f.hobbsFin:max), 0);
   state.settings.matricula = 'HJ-521';
   state.settings.origen = 'SKMD';
   state.settings.historicoImportado = true;
-  await saveFlights(); await saveMaint(); await saveSettings();
+  try{
+    await docRef.set({flights: state.flights, maintenance: state.maintenance, settings: state.settings}, {merge:true});
+  }catch(e){
+    console.error(e);
+    alert('No se pudo guardar el histórico en la nube. Revisa tu conexión e inténtalo de nuevo desde el botón "Recargar histórico".');
+  }
 }
 
 // ---------- arranque de la app (solo tras iniciar sesión) ----------
