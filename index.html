@@ -240,8 +240,8 @@
     </div>
 
     <div class="grid2">
-      <div><label>Origen</label><input type="text" id="f_origen" class="mono-field" placeholder="Ej. SKMD"></div>
-      <div><label>Destino</label><input type="text" id="f_destino" class="mono-field" placeholder="Ej. SKAD"></div>
+      <div><label>Origen</label><input type="text" id="f_origen" class="mono-field" style="text-transform:uppercase;" placeholder="Ej. SKMD"></div>
+      <div><label>Destino</label><input type="text" id="f_destino" class="mono-field" style="text-transform:uppercase;" placeholder="Ej. SKAD"></div>
     </div>
 
     <label>Zona horaria: Colombia (UTC−5) <span style="color:var(--muted);font-weight:400;">— se aplica automáticamente</span></label>
@@ -257,7 +257,7 @@
     </div>
 
     <div class="grid2">
-      <div><label># Aterrizajes</label><input type="number" id="f_aterrizajes" min="0" placeholder="1"></div>
+      <div><label># Aterrizajes</label><input type="number" id="f_aterrizajes" min="0" placeholder="Ej. 1"></div>
       <div><label>Combustible (opcional)</label><input type="number" step="0.1" id="f_combustible" class="mono-field" placeholder="Galones / Lts"></div>
     </div>
 
@@ -540,6 +540,7 @@ $('#saveVuelo').addEventListener('click', async ()=>{
   $('#f_piloto').value = DEFAULTS.piloto;
   $('#f_copiloto').value = DEFAULTS.copiloto;
   $('#f_origen').value = state.settings.origen || DEFAULTS.origen;
+  $('#f_aterrizajes').value = 1;
   updatePreview();
 });
 
@@ -597,6 +598,13 @@ function renderMant(){
 
 ['f_piloto','f_copiloto'].forEach(id=>{
   document.getElementById(id).addEventListener('focus', e=> e.target.select());
+});
+['f_origen','f_destino'].forEach(id=>{
+  document.getElementById(id).addEventListener('input', e=>{
+    const pos = e.target.selectionStart;
+    e.target.value = e.target.value.toUpperCase();
+    e.target.setSelectionRange(pos, pos);
+  });
 });
 
 $('#xlsxVuelos').addEventListener('click', ()=>{
@@ -727,6 +735,19 @@ const SEED_FLIGHTS = [
   {fecha:'2025-10-17', piloto:'Juan Esteban Saldarriaga', copiloto:'Julio Consuegra', origen:'SKMD', destino:'SKMD', ini:'2025-10-17T12:34', fin:'2025-10-17T13:47', hIni:230.1, hFin:231.3, ater:1, notas:'Horómetro estimado por interpolación (no registrado en el original).'},
   {fecha:'2025-11-03', piloto:'Santiago Rendón', copiloto:'Julio Consuegra', origen:'SKMD', destino:'SKMD', ini:null, fin:null, hIni:231.9, hFin:233.2, ater:1, notas:'Hay un salto de 0.6h sin explicar entre este vuelo y el del 17/10/25.'},
   {fecha:'2025-11-06', piloto:'Santiago Rendón', copiloto:'Julio Consuegra', origen:'SKMD', destino:'SKMD', ini:null, fin:null, hIni:233.2, hFin:234.5, ater:1, notas:''},
+  // --- hojas 10, 11 y 12 (agregadas después) ---
+  {fecha:'2025-11-08', piloto:'Juan Esteban Saldarriaga', copiloto:'Santiago Rendón', origen:'SKMD', destino:'SKUR', ini:null, fin:null, hIni:234.5, hFin:235.3, ater:1, notas:''},
+  {fecha:'2025-11-08', piloto:'Juan Esteban Saldarriaga', copiloto:'Santiago Rendón', origen:'SKUR', destino:'SKMD', ini:null, fin:null, hIni:235.3, hFin:235.8, ater:1, notas:'Segundo vuelo del día (regreso).'},
+  {fecha:'2025-12-07', piloto:'Juan Esteban Saldarriaga', copiloto:'Santiago Rendón', origen:'SKMD', destino:'SKMD', ini:null, fin:null, hIni:236.0, hFin:237.7, ater:1, notas:'Salto de 0.2h sin explicar frente al mantenimiento del 22/11/25 (horómetro 235.8).'},
+  {fecha:'2025-12-13', piloto:'Juan Esteban Saldarriaga', copiloto:'Santiago Rendón', origen:'SKMD', destino:'SKMD', ini:null, fin:null, hIni:237.7, hFin:239.4, ater:1, notas:''},
+  {fecha:'2026-01-18', piloto:'Juan Esteban Saldarriaga', copiloto:'Santiago Rendón', origen:'SKMD', destino:'SKMD', ini:null, fin:null, hIni:239.4, hFin:241.4, ater:6, notas:''},
+  {fecha:'2026-03-22', piloto:'Juan Esteban Saldarriaga', copiloto:'Iván Felipe Isaza', origen:'SKMD', destino:'SKMD', ini:null, fin:null, hIni:241.5, hFin:242.9, ater:1, notas:'Salto de 0.1h sin explicar frente al vuelo anterior.'},
+  {fecha:'2026-04-12', piloto:'Juan Esteban Saldarriaga', copiloto:'Luis Miguel Mejía', origen:'SKMD', destino:'SKMD', ini:null, fin:null, hIni:242.9, hFin:244.2, ater:1, notas:''},
+  {fecha:'2026-04-25', piloto:'Juan Esteban Saldarriaga', copiloto:'Santiago Rendón', origen:'SKMD', destino:'SKMD', ini:null, fin:null, hIni:244.2, hFin:245.7, ater:1, notas:''},
+  {fecha:'2026-05-23', piloto:'Juan Esteban Saldarriaga', copiloto:'Santiago Rendón', origen:'SKMD', destino:'SKMD', ini:null, fin:null, hIni:245.7, hFin:247.4, ater:3, notas:''},
+  {fecha:'2026-06-20', piloto:'Juan Esteban Saldarriaga', copiloto:'Santiago Rendón', origen:'SKMD', destino:'SKGO', ini:null, fin:null, hIni:247.4, hFin:248.7, ater:1, notas:''},
+  {fecha:'2026-09-05', piloto:'Juan Esteban Saldarriaga', copiloto:'Santiago Rendón', origen:'SKMD', destino:'SKUR', ini:null, fin:null, hIni:250.1, hFin:250.9, ater:1, notas:'Salto de 1.4h sin explicar frente al vuelo del 20/06/26 (terminó en 248.7).'},
+  {fecha:'2026-09-05', piloto:'Juan Esteban Saldarriaga', copiloto:'Santiago Rendón', origen:'SKUR', destino:'SKMD', ini:null, fin:null, hIni:250.9, hFin:252.1, ater:1, notas:'Segundo vuelo del día (regreso).'},
 ];
 const SEED_MAINT = [
   {fecha:'2024-11-13', horas:null, reporte:'Entrenamiento EOH.', accion:'', tecnico:''},
@@ -735,6 +756,8 @@ const SEED_MAINT = [
   {fecha:'2025-04-08', horas:225.0, reporte:'Chequeo de vuelo a Santiago Rendón Gaviria, PPA 2843. Resultado satisfactorio.', accion:'', tecnico:'Julio Consuegra, IVA 1886'},
   {fecha:'2025-10-17', horas:231.3, reporte:'Chequeo de vuelo a Juan Esteban Saldarriaga, PPA 2812, C.C. 98546224, ante inspector UAEAC. Resultado satisfactorio.', accion:'', tecnico:'Cap. Claudia Cárdenas Zárate (UAEAC - Secretaría Seguridad Operacional)'},
   {fecha:'2025-11-06', horas:234.5, reporte:'Chequeo de vuelo a Santiago Rendón, PPA 2843. Resultado satisfactorio.', accion:'', tecnico:'Julio Consuegra, IVA 1886'},
+  {fecha:'2025-11-22', horas:235.8, reporte:'Cambio de aceite (3 galones Shell Advance 10W50).', accion:'', tecnico:''},
+  {fecha:'2026-02-08', horas:null, reporte:'Cambio de batería 12V.', accion:'', tecnico:''},
 ];
 async function importHistorico(){
   const flights = SEED_FLIGHTS.map((s,i)=>{
@@ -764,7 +787,7 @@ async function importHistorico(){
   state.maintenance = otherMaint.concat(maint).sort((a,b)=> (b.fecha||'').localeCompare(a.fecha||''));
 
   // acumulado de 25h: horas voladas desde el último mantenimiento real (14/09/25), sobre TODOS los vuelos actuales
-  const lastMaintDate = '2025-09-14';
+  const lastMaintDate = '2025-11-22';
   state.settings.acumulado = state.flights.filter(f=>f.fecha>lastMaintDate).reduce((s,f)=>s+(f.hobbsTotal||0),0);
   state.settings.totalHoras = state.flights.reduce((max,f)=> (f.hobbsFin>max? f.hobbsFin:max), 0);
   state.settings.matricula = 'HJ-521';
@@ -788,6 +811,7 @@ async function startApp(){
   $('#f_origen').value = state.settings.origen || DEFAULTS.origen;
   $('#f_piloto').value = DEFAULTS.piloto;
   $('#f_copiloto').value = DEFAULTS.copiloto;
+  $('#f_aterrizajes').value = 1;
   const today = new Date().toISOString().slice(0,10);
   $('#f_fecha').value = today;
   $('#m_fecha').value = today;
