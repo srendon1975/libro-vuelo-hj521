@@ -101,7 +101,7 @@
   }
   nav.tabs button{
     flex:1;background:none;border:none;color:var(--muted);font-family:'Inter';
-    font-size:13px;font-weight:600;padding:10px 4px;border-radius:9px;cursor:pointer;
+    font-size:12.5px;font-weight:600;padding:10px 2px;border-radius:9px;cursor:pointer;white-space:nowrap;
   }
   nav.tabs button.active{background:var(--amber);color:#1a1408;}
 
@@ -171,6 +171,33 @@
     position:fixed;top:12px;right:12px;background:none;border:1px solid var(--border);
     color:var(--muted);font-size:11px;padding:6px 10px;border-radius:8px;cursor:pointer;z-index:5;
   }
+
+  /* ---------- foto del libro físico ---------- */
+  .photo-drop{display:block;border:1.5px dashed var(--amber-dim);border-radius:12px;padding:18px 12px;text-align:center;
+    color:var(--amber);font-weight:600;font-size:14px;cursor:pointer;background:#140f06;margin-top:6px;}
+  .photo-drop small{display:block;color:var(--muted);font-weight:400;font-size:11.5px;margin-top:4px;}
+  .thumbs{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;}
+  .thumbs img{width:76px;height:76px;object-fit:cover;border-radius:8px;border:1px solid var(--border);}
+  .ocr-summary{font-size:13px;line-height:1.6;margin-bottom:12px;}
+  .ocr-summary b{color:var(--amber);}
+  .ocr-row{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:12px;margin-bottom:10px;}
+  .ocr-row.missing{border-color:var(--amber-dim);}
+  .ocr-row.review{border-color:#5a2a26;}
+  .ocr-row.dup{opacity:.6;}
+  .ocr-head{display:flex;align-items:center;gap:10px;justify-content:space-between;}
+  .ocr-head label{margin:0;display:flex;align-items:center;gap:8px;font-size:13.5px;color:var(--text);font-family:'Space Grotesk';font-weight:600;}
+  .ocr-head input[type=checkbox]{width:20px;height:20px;accent-color:var(--amber);}
+  .chip{font-size:10.5px;padding:3px 8px;border-radius:20px;white-space:nowrap;font-weight:600;letter-spacing:.3px;}
+  .chip.missing{background:#2a1e08;color:var(--amber);border:1px solid var(--amber-dim);}
+  .chip.dup{background:#12251c;color:#9be3b8;border:1px solid #244a34;}
+  .chip.review{background:var(--danger-dim);color:#ffb4ae;border:1px solid #5a2a26;}
+  .ocr-why{font-size:11.5px;color:var(--muted);margin-top:6px;}
+  .ocr-fields{margin-top:8px;}
+  .ocr-fields label{margin-top:6px;}
+  .ocr-fields input{padding:8px;font-size:13.5px;}
+  .ocr-dup-line{font-size:12px;color:var(--muted);margin-top:4px;font-family:'IBM Plex Mono';}
+  .spinner{display:inline-block;width:14px;height:14px;border:2px solid var(--amber-dim);border-top-color:var(--amber);border-radius:50%;animation:spin 0.8s linear infinite;vertical-align:-2px;margin-right:6px;}
+  @keyframes spin{to{transform:rotate(360deg)}}
 </style>
 </head>
 <body>
@@ -221,6 +248,7 @@
 <nav class="tabs">
   <button class="tab-btn active" data-tab="vuelo">Nuevo vuelo</button>
   <button class="tab-btn" data-tab="historial">Historial</button>
+  <button class="tab-btn" data-tab="foto">Foto libro</button>
   <button class="tab-btn" data-tab="mantenimiento">Mantenimiento</button>
 </nav>
 
@@ -278,6 +306,24 @@
   <div id="historialList"></div>
 </section>
 
+<!-- FOTO DEL LIBRO FÍSICO -->
+<section class="tab-content" id="tab-foto">
+  <div class="card">
+    <h2>Cargar vuelos desde la foto del libro</h2>
+    <p style="font-size:12.5px;color:var(--muted);margin:0 0 6px;line-height:1.55;">
+      Al terminar el vuelo, llena el libro físico y tómale una foto a la hoja. La app lee los renglones, los compara con el historial y te muestra cuáles faltan para cargarlos. Puedes subir varias hojas a la vez.
+    </p>
+    <label class="photo-drop" for="ocrFiles">📷 Tomar o elegir foto(s) del libro
+      <small>Toma la foto de frente, con buena luz y la hoja completa</small>
+    </label>
+    <input type="file" id="ocrFiles" accept="image/*" multiple style="display:none;">
+    <div class="thumbs" id="ocrThumbs"></div>
+    <div class="msg" id="ocrMsg"></div>
+    <button class="primary" id="ocrAnalyze" disabled style="opacity:.5;">Leer la foto y buscar vuelos faltantes</button>
+  </div>
+  <div id="ocrResults"></div>
+</section>
+
 <!-- MANTENIMIENTO -->
 <section class="tab-content" id="tab-mantenimiento">
   <div class="card">
@@ -304,6 +350,66 @@
   Los datos se guardan en la nube (Firebase) y se sincronizan en tiempo real entre todos los que abran esta página. En iPhone, usa "Compartir → Añadir a pantalla de inicio" en Safari para abrir esta página como una app.
 </footer>
 </div><!-- /#app -->
+
+<!-- IA para leer la foto del libro (Firebase AI Logic + Gemini) -->
+<script type="module">
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.18.0/firebase-app.js';
+import { getAI, getGenerativeModel, GoogleAIBackend } from 'https://www.gstatic.com/firebasejs/12.18.0/firebase-ai.js';
+import { initializeAppCheck, ReCaptchaEnterpriseProvider } from 'https://www.gstatic.com/firebasejs/12.18.0/firebase-app-check.js';
+
+const RECAPTCHA_SITE_KEY = '6LfyUPotAAAAAINkvVQyvaKX3OAHDQzwIrGV56AI';   // clave de sitio (pública) de reCAPTCHA Enterprise registrada en App Check
+const MODELS = ['gemini-3.8-flash', 'gemini-3-flash', 'gemini-3-flash-preview'];
+
+const aiApp = initializeApp({
+  apiKey: "AIzaSyA28wVpMs7VyA9R6B8gr9tZhC8Y1VcAL2Y",
+  authDomain: "libro-de-vuelo-hj-521.firebaseapp.com",
+  projectId: "libro-de-vuelo-hj-521",
+  storageBucket: "libro-de-vuelo-hj-521.firebasestorage.app",
+  messagingSenderId: "19071938862",
+  appId: "1:19071938862:web:b9b620f7de27c35e350abf"
+}, 'ai');
+if (RECAPTCHA_SITE_KEY) {
+  initializeAppCheck(aiApp, { provider: new ReCaptchaEnterpriseProvider(RECAPTCHA_SITE_KEY), isTokenAutoRefreshEnabled: true });
+}
+const ai = getAI(aiApp, { backend: new GoogleAIBackend() });
+
+window.readLogbookPhotos = async function(images, context){
+  const prompt = `Eres un asistente que transcribe el libro de vuelo físico (bitácora) de un avión liviano colombiano, matrícula ${context.matricula}.
+Las imágenes son fotos de hojas del libro, escritas a mano. Transcribe CADA renglón de vuelo que veas (ignora encabezados, firmas, sellos y renglones vacíos o tachados).
+
+Para cada vuelo devuelve un objeto con:
+- fecha: "YYYY-MM-DD". En el libro suele estar como dd/mm/aa o dd/mm/aaaa (día primero). Si el renglón usa comillas o "idem", usa la fecha del renglón anterior.
+- piloto, copiloto: nombre como aparece; si coincide con uno de estos nombres conocidos, usa el conocido completo: ${context.pilotos.join(', ')}.
+- origen, destino: código OACI de 4 letras en mayúscula (ej. SKMD). Aeropuertos frecuentes: ${context.aeropuertos.join(', ')}.
+- salida, llegada: hora local "HH:MM" (24 h) si está escrita; si no, null.
+- hobbsIni, hobbsFin: horómetro inicial y final como número decimal (ej. 252.1). Si falta uno, null.
+- aterrizajes: número entero o null.
+- combustible: número o null.
+- confianza: "alta", "media" o "baja" según qué tan legible está el renglón.
+- observacion: texto corto si algo es dudoso o ilegible; si no, "".
+
+Pista: los horómetros son consecutivos (el final de un vuelo suele ser el inicial del siguiente). El último horómetro conocido en el sistema es ${context.ultimoHobbs}. Úsalo para resolver dígitos dudosos, pero NO inventes datos que no estén en la foto.
+
+Responde SOLO con JSON válido con esta forma: {"vuelos":[ ... ]} en el orden en que aparecen en la hoja.`;
+
+  const parts = [{ text: prompt }, ...images.map(b64 => ({ inlineData: { mimeType: 'image/jpeg', data: b64 } }))];
+  let lastErr;
+  for (const model of MODELS) {
+    try {
+      const m = getGenerativeModel(ai, { model, generationConfig: { responseMimeType: 'application/json', temperature: 0 } });
+      const r = await m.generateContent(parts);
+      let txt = r.response.text().trim().replace(/^```(json)?/i, '').replace(/```$/, '').trim();
+      const data = JSON.parse(txt);
+      return Array.isArray(data) ? data : (data.vuelos || []);
+    } catch (e) {
+      lastErr = e;
+      const msg = String(e && e.message || e);
+      if (!/404|not found|not supported|NOT_FOUND|is not available/i.test(msg)) break; // solo prueba otro modelo si este no existe
+    }
+  }
+  throw lastErr;
+};
+</script>
 
 <script>
 const $=s=>document.querySelector(s);
@@ -472,6 +578,7 @@ function renderGauge(){
 $('#resetBtn').addEventListener('click', async ()=>{
   if(!confirm('¿Confirmas que se realizó el mantenimiento y deseas reiniciar el contador de 25h?')) return;
   state.settings.acumulado = 0;
+  state.settings.resetFecha = new Date().toISOString().slice(0,10);
   await saveSettings();
   renderGauge();
 });
@@ -646,6 +753,213 @@ $('#reimportBtn').addEventListener('click', async ()=>{
   $('#reimportBtn').disabled = false; $('#reimportBtn').textContent = 'Recargar histórico (si faltan datos)';
   alert('Histórico recargado correctamente.');
 });
+
+// ---------- cargar vuelos desde la foto del libro físico ----------
+let ocrFiles = [];
+let ocrRows = [];
+const escHTML = v => String(v==null?'':v).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const numOrNull = v => { if(v===''||v==null) return null; const n = parseFloat(String(v).replace(',','.')); return isNaN(n)? null : n; };
+
+$('#ocrFiles').addEventListener('change', e=>{
+  ocrFiles = Array.from(e.target.files||[]);
+  $('#ocrThumbs').innerHTML = ocrFiles.map(f=>`<img src="${URL.createObjectURL(f)}" alt="hoja">`).join('');
+  const btn = $('#ocrAnalyze'); btn.disabled = ocrFiles.length===0; btn.style.opacity = ocrFiles.length? 1 : .5;
+  $('#ocrMsg').className='msg'; $('#ocrResults').innerHTML='';
+});
+
+function compressImage(file, maxSide=2000, quality=0.85){
+  return new Promise((resolve, reject)=>{
+    const img = new Image();
+    img.onload = ()=>{
+      const scale = Math.min(1, maxSide/Math.max(img.width, img.height));
+      const c = document.createElement('canvas');
+      c.width = Math.round(img.width*scale); c.height = Math.round(img.height*scale);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(img.src);
+      resolve(c.toDataURL('image/jpeg', quality).split(',')[1]);
+    };
+    img.onerror = ()=> reject(new Error('No se pudo abrir la imagen.'));
+    img.src = URL.createObjectURL(file);
+  });
+}
+
+function ocrContext(){
+  const names = new Set([DEFAULTS.piloto, DEFAULTS.copiloto]);
+  const apts = new Set(['SKMD']);
+  state.flights.forEach(f=>{ if(f.piloto) names.add(f.piloto); if(f.copiloto) names.add(f.copiloto); if(f.origen) apts.add(f.origen); if(f.destino) apts.add(f.destino); });
+  const ultimo = state.flights.reduce((m,f)=> f.hobbsFin>m? f.hobbsFin : m, 0);
+  return { matricula: state.settings.matricula || DEFAULTS.matricula, pilotos:[...names], aeropuertos:[...apts], ultimoHobbs: ultimo ? ultimo.toFixed(1) : 'desconocido' };
+}
+
+function normalizeRow(r){
+  const t = v => (v==null? '' : String(v).trim());
+  const hhmm = v => { const m = t(v).match(/^(\d{1,2})[:.h](\d{2})/); return m? `${m[1].padStart(2,'0')}:${m[2]}` : ''; };
+  let fecha = t(r.fecha);
+  const m = fecha.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})$/);
+  if(m){ const y = m[3].length===2? '20'+m[3] : m[3]; fecha = `${y}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`; }
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(fecha)) fecha = '';
+  return {
+    fecha, piloto:t(r.piloto), copiloto:t(r.copiloto),
+    origen:t(r.origen).toUpperCase(), destino:t(r.destino).toUpperCase(),
+    salida:hhmm(r.salida), llegada:hhmm(r.llegada),
+    hobbsIni:numOrNull(r.hobbsIni), hobbsFin:numOrNull(r.hobbsFin),
+    aterrizajes: r.aterrizajes==null||r.aterrizajes===''? null : parseInt(r.aterrizajes,10),
+    combustible:numOrNull(r.combustible),
+    confianza:t(r.confianza)||'media', observacion:t(r.observacion)
+  };
+}
+
+function classifyRow(r){
+  const near = (a,b)=> a!=null && b!=null && Math.abs(a-b) < 0.15;
+  const sameDay = state.flights.filter(f=> f.fecha===r.fecha);
+  let match = sameDay.find(f=> near(f.hobbsIni,r.hobbsIni) || near(f.hobbsFin,r.hobbsFin));
+  if(match) return {status:'dup', match};
+  match = state.flights.find(f=> near(f.hobbsIni,r.hobbsIni) && near(f.hobbsFin,r.hobbsFin));
+  if(match) return {status:'dup', match, why:`Mismo horómetro que el vuelo del ${match.fecha}. Probablemente la fecha se leyó distinta.`};
+  if(r.hobbsIni==null && r.hobbsFin==null){
+    match = sameDay.find(f=> f.origen===r.origen && f.destino===r.destino);
+    if(match) return {status:'dup', match};
+  }
+  const p = [];
+  if(!r.fecha) p.push('No se pudo leer la fecha.');
+  if(r.hobbsIni==null || r.hobbsFin==null) p.push('Falta un horómetro.');
+  else if(r.hobbsFin < r.hobbsIni) p.push('El horómetro final es menor que el inicial.');
+  else if(r.hobbsFin - r.hobbsIni > 6) p.push('Más de 6 h en un solo vuelo: revisa el horómetro.');
+  if(r.hobbsIni!=null && r.hobbsFin!=null){
+    const ov = state.flights.find(f=> r.hobbsIni < f.hobbsFin-0.05 && r.hobbsFin > f.hobbsIni+0.05);
+    if(ov) p.push(`El horómetro se cruza con el vuelo del ${ov.fecha} (${ov.hobbsIni.toFixed(1)} → ${ov.hobbsFin.toFixed(1)}).`);
+  }
+  if(sameDay.length) p.push(`Ese día ya hay ${sameDay.length} vuelo(s) registrado(s) con otro horómetro.`);
+  if(r.confianza==='baja') p.push('Renglón poco legible.');
+  return {status: p.length? 'review' : 'missing', why: p.join(' ')};
+}
+
+$('#ocrAnalyze').addEventListener('click', async ()=>{
+  const msg = $('#ocrMsg'), btn = $('#ocrAnalyze');
+  if(!ocrFiles.length) return;
+  if(typeof window.readLogbookPhotos !== 'function'){ msg.className='msg err'; msg.textContent='El lector de fotos no cargó. Revisa tu conexión y recarga la página.'; return; }
+  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>Leyendo el libro… (puede tardar unos segundos)';
+  msg.className='msg'; $('#ocrResults').innerHTML='';
+  try{
+    const images = [];
+    for(const f of ocrFiles) images.push(await compressImage(f));
+    const raw = await window.readLogbookPhotos(images, ocrContext());
+    // normaliza y quita renglones repetidos (p. ej. dos fotos de la misma hoja)
+    const seen = new Set();
+    ocrRows = raw.map(normalizeRow).filter(r=>{
+      if(!r.fecha && r.hobbsIni==null && r.hobbsFin==null) return false;
+      const k = `${r.fecha}|${r.hobbsIni}|${r.hobbsFin}`; if(seen.has(k)) return false; seen.add(k); return true;
+    }).map(r=>{ const c = classifyRow(r); return {...r, ...c, selected: c.status==='missing'}; });
+    renderOcr();
+  }catch(e){
+    console.error(e);
+    const m = String(e && e.message || e);
+    msg.className='msg err';
+    msg.textContent = /App Check|401|403/.test(m) ? 'La IA rechazó la solicitud (verificación de la app). Avísale al administrador.' :
+                      /quota|429|RESOURCE_EXHAUSTED/i.test(m) ? 'Se agotó la cuota gratuita de la IA por hoy. Inténtalo más tarde.' :
+                      'No se pudo leer la foto. Intenta con una foto más clara o revisa tu conexión. ('+m.slice(0,120)+')';
+  }finally{
+    btn.disabled = false; btn.textContent = 'Leer la foto y buscar vuelos faltantes';
+  }
+});
+
+function renderOcr(){
+  const box = $('#ocrResults');
+  if(!ocrRows.length){ box.innerHTML = '<div class="card"><div class="empty">No se encontraron renglones de vuelo en la foto. Intenta con una foto más nítida.</div></div>'; return; }
+  const miss = ocrRows.filter(r=>r.status==='missing'), rev = ocrRows.filter(r=>r.status==='review'), dup = ocrRows.filter(r=>r.status==='dup');
+  const fechasFalt = [...new Set(miss.concat(rev).map(r=>r.fecha||'¿sin fecha?'))];
+  let html = `<div class="card"><h2>Resultado de la lectura</h2><div class="ocr-summary">
+    Renglones leídos: <b>${ocrRows.length}</b> · ya registrados: <b>${dup.length}</b> · faltan: <b>${miss.length}</b>${rev.length? ` · para revisar: <b>${rev.length}</b>`:''}<br>
+    ${fechasFalt.length? `Fechas que faltan en el sistema: <b>${fechasFalt.join(', ')}</b>` : '✅ Todos los vuelos de la foto ya están en el sistema.'}
+  </div><div style="font-size:11.5px;color:var(--muted);">Revisa los datos contra el libro antes de cargar. Puedes corregir cualquier campo.</div></div>`;
+  html += ocrRows.map((r,i)=>{
+    if(r.status==='dup') return `<div class="ocr-row dup"><div class="ocr-head"><label>${escHTML(r.fecha)} · ${escHTML(r.origen)} → ${escHTML(r.destino)}</label><span class="chip dup">Ya registrado</span></div>
+      <div class="ocr-dup-line">Horómetro ${r.hobbsIni!=null?r.hobbsIni.toFixed(1):'—'} → ${r.hobbsFin!=null?r.hobbsFin.toFixed(1):'—'}</div>${r.why?`<div class="ocr-why">${escHTML(r.why)}</div>`:''}</div>`;
+    const f = (k,lbl,type='text',cls='') => `<div><label>${lbl}</label><input type="${type}" ${type==='number'?'step="0.1"':''} class="${cls}" data-i="${i}" data-k="${k}" value="${escHTML(r[k]==null?'':r[k])}"></div>`;
+    return `<div class="ocr-row ${r.status}">
+      <div class="ocr-head"><label><input type="checkbox" data-sel="${i}" ${r.selected?'checked':''}> Cargar este vuelo</label>
+        <span class="chip ${r.status}">${r.status==='missing'?'Falta':'Revisar'}</span></div>
+      ${r.why?`<div class="ocr-why">⚠ ${escHTML(r.why)}</div>`:''}
+      ${r.observacion?`<div class="ocr-why">ⓘ ${escHTML(r.observacion)}</div>`:''}
+      <div class="ocr-fields">
+        <div class="grid2">${f('fecha','Fecha','date')}${f('aterrizajes','# Aterrizajes','number')}</div>
+        <div class="grid2">${f('piloto','Piloto')}${f('copiloto','Copiloto')}</div>
+        <div class="grid2">${f('origen','Origen','text','mono-field')}${f('destino','Destino','text','mono-field')}</div>
+        <div class="grid2">${f('salida','Salida (hora local)','time')}${f('llegada','Llegada (hora local)','time')}</div>
+        <div class="grid2">${f('hobbsIni','Horómetro inicial','number','mono-field')}${f('hobbsFin','Horómetro final','number','mono-field')}</div>
+      </div>
+    </div>`;
+  }).join('');
+  const nSel = ocrRows.filter(r=>r.selected && r.status!=='dup').length;
+  if(miss.length || rev.length){
+    html += `<div class="msg" id="ocrSaveMsg"></div><button class="primary" id="ocrSave">Cargar ${nSel} vuelo(s) seleccionado(s)</button>`;
+  }
+  box.innerHTML = html;
+  box.querySelectorAll('input[data-k]').forEach(inp=> inp.addEventListener('input', e=>{
+    const r = ocrRows[e.target.dataset.i], k = e.target.dataset.k; let v = e.target.value;
+    if(['hobbsIni','hobbsFin'].includes(k)) v = numOrNull(v);
+    else if(k==='aterrizajes') v = v===''? null : parseInt(v,10);
+    else if(['origen','destino'].includes(k)) { v = v.toUpperCase(); e.target.value = v; }
+    r[k] = v;
+  }));
+  box.querySelectorAll('input[data-sel]').forEach(cb=> cb.addEventListener('change', e=>{
+    ocrRows[e.target.dataset.sel].selected = e.target.checked;
+    const n = ocrRows.filter(r=>r.selected && r.status!=='dup').length;
+    const b = $('#ocrSave'); if(b) b.textContent = `Cargar ${n} vuelo(s) seleccionado(s)`;
+  }));
+  const save = $('#ocrSave'); if(save) save.addEventListener('click', saveOcrFlights);
+}
+
+async function saveOcrFlights(){
+  const msg = $('#ocrSaveMsg');
+  const sel = ocrRows.filter(r=>r.selected && r.status!=='dup');
+  if(!sel.length){ msg.className='msg err'; msg.textContent='No hay vuelos seleccionados.'; return; }
+  for(const r of sel){
+    const who = r.fecha || 'renglón sin fecha';
+    if(!r.fecha || !r.piloto || !r.origen || !r.destino || r.hobbsIni==null || r.hobbsFin==null){
+      msg.className='msg err'; msg.textContent=`Al vuelo de ${who} le falta fecha, piloto, origen, destino u horómetros.`; return;
+    }
+    if(r.hobbsFin < r.hobbsIni){ msg.className='msg err'; msg.textContent=`En el vuelo de ${who} el horómetro final es menor que el inicial.`; return; }
+    // vuelve a revisar contra lo que hay en la nube en este momento
+    const c = classifyRow(r);
+    if(c.status==='dup'){ msg.className='msg err'; msg.textContent=`El vuelo de ${who} ya está registrado. Desmárcalo.`; return; }
+  }
+  if(!confirm(`¿Cargar ${sel.length} vuelo(s) al libro digital?`)) return;
+  const boundary = state.settings.resetFecha || '2025-11-22'; // último mantenimiento que reinició el contador
+  let sumaAcum = 0, maxFin = state.settings.totalHoras || 0;
+  const nuevos = sel.map((r,i)=>{
+    const ini = r.salida? `${r.fecha}T${r.salida}` : null, fin = r.llegada? `${r.fecha}T${r.llegada}` : null;
+    let dIni=null, dFin=null, durMin=null;
+    if(ini && fin){ dIni=localToUTCDate(ini,COLOMBIA_OFFSET); dFin=localToUTCDate(fin,COLOMBIA_OFFSET); durMin=Math.round((dFin-dIni)/60000); if(durMin<0){ dIni=dFin=null; durMin=null; } }
+    const hDiff = hobbsDiff(r.hobbsIni, r.hobbsFin);
+    if(r.fecha > boundary) sumaAcum += hDiff;
+    if(r.hobbsFin > maxFin) maxFin = r.hobbsFin;
+    return {
+      id:'foto-'+Date.now()+'-'+i,
+      matricula: state.settings.matricula || DEFAULTS.matricula,
+      fecha:r.fecha, piloto:r.piloto, copiloto:r.copiloto, origen:r.origen, destino:r.destino,
+      offset:COLOMBIA_OFFSET,
+      inicioLocal: dIni? ini:null, finLocal: dFin? fin:null,
+      inicioUTC: dIni? fmtUTC(dIni):null, finUTC: dFin? fmtUTC(dFin):null,
+      duracion: durMin!=null? minutesToHHMM(durMin):null,
+      hobbsIni:r.hobbsIni, hobbsFin:r.hobbsFin, hobbsTotal:hDiff,
+      aterrizajes: r.aterrizajes, combustible: r.combustible,
+      notas: 'Cargado desde foto del libro físico.' + (r.observacion? ' '+r.observacion : '')
+    };
+  });
+  state.flights = state.flights.concat(nuevos).sort((a,b)=> (b.fecha||'').localeCompare(a.fecha||'') || (b.hobbsFin||0)-(a.hobbsFin||0));
+  state.settings.acumulado = Math.round(((state.settings.acumulado||0) + sumaAcum)*10)/10;
+  state.settings.totalHoras = maxFin;
+  try{
+    await docRef.set({flights: state.flights, settings: state.settings}, {merge:true});
+  }catch(e){ console.error(e); msg.className='msg err'; msg.textContent='No se pudo guardar en la nube. Revisa tu conexión.'; return; }
+  renderGauge(); renderHistorial();
+  ocrFiles = []; $('#ocrFiles').value=''; $('#ocrThumbs').innerHTML='';
+  $('#ocrAnalyze').disabled = true; $('#ocrAnalyze').style.opacity=.5;
+  $('#ocrResults').innerHTML = '';
+  const m = $('#ocrMsg'); m.className='msg ok';
+  m.textContent = `Se cargaron ${nuevos.length} vuelo(s): ${nuevos.map(f=>f.fecha).join(', ')}. Ya aparecen en el Historial.`;
+}
 
 // ---------- PDF reports ----------
 function ensureJsPDF(){
